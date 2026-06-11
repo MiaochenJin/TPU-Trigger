@@ -23,8 +23,10 @@ python smoke_test/convert_and_compile.py
 1. `edgetpu_compiler` exits 0 and produces `out/smoke_int8_edgetpu.tflite`.
 2. **100% of compute ops "Mapped to Edge TPU"** — at most 2 boundary
    `QUANTIZE`/`DEQUANTIZE` ops on CPU.
-3. Parity over 32 fixed-seed inputs: max |int8 output − PyTorch float output|
-   ≤ 3× the output tensor's quantization scale, Pearson r > 0.99.
+3. Conversion parity: float `.tflite` vs PyTorch max |err| ≤ 1e-4 (catches
+   converter bugs; quantization noise excluded).
+4. Quantization parity over 32 fixed-seed inputs: NRMSE (rmse / output range)
+   ≤ 5% and Pearson r > 0.99.
 
 ## If it fails (in order — don't build fallbacks preemptively)
 
