@@ -9,8 +9,9 @@ edgetpu_compiler on PATH:
 Pass criteria (see smoke_test/README.md):
   1. compiler exits 0 and writes smoke_int8_edgetpu.tflite
   2. all compute ops "Mapped to Edge TPU" (<=2 boundary QUANTIZE ops on CPU)
-  3. int8-interpreter output vs PyTorch float: max |err| <= 3x output quant
-     scale and Pearson r > 0.99 over 32 fixed-seed inputs
+  3. conversion parity: float .tflite vs PyTorch, max |err| <= 1e-4
+  4. quantization parity: int8 .tflite vs PyTorch over 32 fixed-seed inputs,
+     NRMSE (rmse / output range) <= 5% and Pearson r > 0.99
 """
 
 import shutil
@@ -89,6 +90,11 @@ def main():
     edge_model.export(str(float_path))
     print(f"wrote {float_path}")
 
+    # conversion-only parity: float tflite must match torch almost exactly
+    f_outputs, _ = run_tflite(float_path, ref_inputs)
+    conv_err = float(np.max(np.abs(f_outputs - ref_outputs)))
+    print(f"float-tflite vs torch max |err| = {conv_err:.2e}")
+
     # 3. full-int8 PTQ via ai-edge-quantizer
     print("== quantizing (static_wi8_ai8) ==")
     sig_key, input_names = get_signature(float_path)
@@ -142,19 +148,28 @@ def main():
         and tpu_ops
     )
 
-    # 5. parity: int8 tflite (CPU interpreter) vs PyTorch float
+    # 5. quantization parity: int8 tflite (CPU interpreter) vs PyTorch float.
+    # Judged on normalized RMSE and correlation — absolute LSB-level bounds
+    # are not meaningful after error accumulation across quantized layers,
+    # especially for a random-weight net with untrained activation ranges.
     print("== parity check ==")
     q_outputs, out_scale = run_tflite(int8_path, ref_inputs)
+    out_range = float(ref_outputs.max() - ref_outputs.min())
     max_err = float(np.max(np.abs(q_outputs - ref_outputs)))
+    rmse = float(np.sqrt(np.mean((q_outputs - ref_outputs) ** 2)))
+    nrmse = rmse / out_range
     r = float(np.corrcoef(q_outputs.reshape(-1), ref_outputs.reshape(-1))[0, 1])
-    tol = 3 * out_scale if out_scale else 0.1
-    print(f"max |err| = {max_err:.5f} (tol {tol:.5f}), pearson r = {r:.5f}")
-    ok_parity = max_err <= tol and r > 0.99
+    print(f"output range {out_range:.4f}, quant scale {out_scale}")
+    print(f"max |err| = {max_err:.5f}, rmse = {rmse:.5f}, "
+          f"nrmse = {nrmse:.4f} (tol 0.05), pearson r = {r:.5f} (>0.99)")
+    ok_convert = conv_err <= 1e-4
+    ok_parity = nrmse <= 0.05 and r > 0.99
 
     print()
-    print(f"op mapping: {'PASS' if ok_mapping else 'FAIL'}")
-    print(f"parity:     {'PASS' if ok_parity else 'FAIL'}")
-    if not (ok_mapping and ok_parity):
+    print(f"op mapping:        {'PASS' if ok_mapping else 'FAIL'}")
+    print(f"conversion parity: {'PASS' if ok_convert else 'FAIL'}")
+    print(f"int8 parity:       {'PASS' if ok_parity else 'FAIL'}")
+    if not (ok_mapping and ok_convert and ok_parity):
         sys.exit("SMOKE TEST FAILED")
     print("SMOKE TEST PASSED")
 

@@ -20,7 +20,10 @@ class TinyTriggerNet(nn.Module):
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.AdaptiveAvgPool2d(1),
+            # fixed-kernel global pooling over the 12x12 grid: converts to a
+            # native AVERAGE_POOL_2D (AdaptiveAvgPool2d decomposes to
+            # TRANSPOSE+SUM, which quantizes less gracefully)
+            nn.AvgPool2d(kernel_size=12),
         )
         self.head = nn.Linear(64, n_out)
 
