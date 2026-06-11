@@ -103,7 +103,7 @@ def main():
     qt.load_quantization_recipe(recipe.static_wi8_ai8())
     calib_result = qt.calibrate(calib_data)
     int8_path = OUT / "smoke_int8.tflite"
-    qt.quantize(calib_result).export_model(str(int8_path))
+    qt.quantize(calib_result, serialize_to_path=str(int8_path))
     print(f"wrote {int8_path}")
 
     # 4. compile for Edge TPU and parse the op-mapping table
