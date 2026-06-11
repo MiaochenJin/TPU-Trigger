@@ -1,8 +1,9 @@
 #!/bin/bash
 # Download and extract edgetpu_compiler v16 without root (FASRC login node).
-# The binary is a 2021 Debian build; Rocky 8's glibc 2.28 should satisfy it —
-# the ldd check below verifies. If it fails, build the Singularity fallback
-# from tools/edgetpu-compiler.def instead.
+# usr/bin/edgetpu_compiler is a wrapper script that invokes the real binary
+# through its own bundled ld-linux + libraries, so it is fully self-contained
+# (no host glibc dependency). If it still fails, build the Singularity
+# fallback from tools/edgetpu-compiler.def instead.
 set -euo pipefail
 
 LAB=/n/holylfs05/LABS/arguelles_delgado_lab/Everyone/miaochenjin
@@ -20,8 +21,6 @@ curl -sO "$APT/$DEB_PATH"
 ar x edgetpu-compiler_*.deb
 tar -xf data.tar.xz 2>/dev/null || tar --zstd -xf data.tar.zst
 
-echo "--- ldd check ---"
-ldd usr/bin/edgetpu_compiler
 echo "--- version ---"
 ./usr/bin/edgetpu_compiler --version
 
