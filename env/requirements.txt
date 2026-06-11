@@ -4,8 +4,9 @@
 # Resolved versions are recorded in requirements.lock.txt after install.
 # cu128 variant: default PyPI torch ships the CUDA 13 runtime, but FASRC GPU
 # nodes run a CUDA 12.9 driver (12090) — cu130 wheels can't initialize there.
+# 2.11.0 is the newest version with a cu128 build (still <2.13 per litert-torch).
 --extra-index-url https://download.pytorch.org/whl/cu128
-torch==2.12.0+cu128
+torch==2.11.0+cu128
 litert-torch==0.9.1
 numpy>=2.0,<3
 h5py>=3.11
