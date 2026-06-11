@@ -1,8 +1,11 @@
 # Milestone 0 results — 2026-06-11 — **GO**
 
-The modern toolchain (PyTorch 2.12.0 → litert-torch 0.9.1 → ai-edge-quantizer
-0.7.0 `static_wi8_ai8` → edgetpu_compiler 16.0.384591198) works end-to-end on
-FASRC (Rocky 8, python/3.12.8-fasrc01 venv). No fallbacks needed.
+The modern toolchain (PyTorch 2.11.0+cu128 → litert-torch 0.9.1 →
+ai-edge-quantizer 0.7.0 `static_wi8_ai8` → edgetpu_compiler 16.0.384591198)
+works end-to-end on FASRC (Rocky 8, python/3.12.8-fasrc01 venv). No fallbacks
+needed. (First validated with torch 2.12.0+cu130, then re-validated bit-identically
+after downgrading to 2.11.0+cu128 — the newest variant whose CUDA runtime the
+FASRC GPU drivers support.)
 
 ## Compiler op table (run 2, with native AvgPool2d)
 
