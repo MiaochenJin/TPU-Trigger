@@ -1,0 +1,16 @@
+# Fallback Singularity recipe — only needed if the extracted edgetpu_compiler
+# binary refuses to run on Rocky 8 (see scripts/install_edgetpu_compiler.sh).
+# Build: singularity build --fakeroot edgetpu-compiler.sif tools/edgetpu-compiler.def
+# Run:   singularity run edgetpu-compiler.sif -s model_int8.tflite
+Bootstrap: docker
+From: debian:bullseye
+
+%post
+    apt-get update && apt-get install -y curl gnupg ca-certificates
+    echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" > /etc/apt/sources.list.d/coral.list
+    curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+    apt-get update && apt-get install -y edgetpu-compiler
+    apt-get clean
+
+%runscript
+    exec edgetpu_compiler "$@"

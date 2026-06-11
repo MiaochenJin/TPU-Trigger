@@ -1,0 +1,12 @@
+# Model authoring + conversion stack. litert-torch is the renamed successor of
+# ai-edge-torch; it pulls in ai-edge-litert, ai-edge-quantizer, litert-converter
+# and torchao at compatible versions — do not pin those transitively here.
+# Resolved versions are recorded in requirements.lock.txt after install.
+torch==2.12.0
+litert-torch==0.9.1
+numpy>=2.0,<3
+h5py>=3.11
+scipy
+matplotlib
+pyyaml
+tqdm
