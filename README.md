@@ -15,6 +15,15 @@ The FASRC cluster handles training, quantization, conversion, compilation, and
 CPU-interpreter validation. Only on-device latency/power benchmarking needs the
 physical Coral accelerator (kept locally).
 
+## Remotes / sync
+
+Canonical repo: [github.com/MiaochenJin/TPU-Trigger](https://github.com/MiaochenJin/TPU-Trigger).
+- **Local Mac**: `origin` → GitHub (ssh), `cluster` → bare repo on the lab
+  share (for direct Mac↔cluster sync without going through GitHub).
+- **Cluster clone** (`.../miaochenjin/TPU-trigger`): `origin` → the lab bare
+  repo (pushable), `github` → GitHub over HTTPS (pull only — outbound ssh
+  auth to GitHub is not set up on FASRC; push from the Mac instead).
+
 ## Cluster layout (FASRC Cannon)
 
 Persistent lab share — code, env, tools, blessed artifacts:
