@@ -69,13 +69,18 @@ def pick_examples(x, y, intensity, n_hits):
     bursts. Returns list of (index, title)."""
     ex = []
     steady = np.where(y == 0)[0]
-    coinc = steady[n_hits[steady] >= 3]
     quiet = steady[n_hits[steady] == 1]
     if len(quiet):
         ex.append((quiet[0], "steady sea (single K40/dark hit)"))
-    if len(coinc):
-        i = coinc[np.argmax(n_hits[coinc])]
-        ex.append((i, f"steady sea (K40 coincidence, {int(n_hits[i])} hits)"))
+    # a genuine K40 coincidence = several hits within ~25 ns (3 bins),
+    # not just a high total count: score by rolling 3-bin DOM-summed hits
+    prof = x[steady].sum(1)  # (n_steady, T) hits per bin
+    roll3 = prof[:, :-2] + prof[:, 1:-1] + prof[:, 2:]
+    score = roll3.max(1)
+    if score.max() >= 3:
+        i = steady[int(np.argmax(score))]
+        ex.append((i, f"steady sea (K40 coincidence: "
+                      f"{int(score.max())} hits in 24 ns)"))
     bursts = np.where(y == 1)[0]
     if len(bursts):
         for q, name in ((0.25, "weak"), (0.7, "medium"), (0.98, "bright")):
