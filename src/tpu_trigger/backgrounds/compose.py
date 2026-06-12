@@ -41,15 +41,18 @@ def make_arrays(n_windows, T=T_DEFAULT, dt_ns=DT_NS_DEFAULT, p_burst=0.5,
     window_ns = T * dt_ns
 
     # K40 base: carve consecutive windows out of independent DOM streams.
-    # One k40gen call yields 2070 DOM-streams of span_ns each.
+    # One k40gen call yields 2070 DOM-streams of span_ns each. k40gen's
+    # buffer preallocation misbehaves for very short spans (heap overrun in
+    # fill_coincidences), so never request less than 10 ms per call.
     per_dom = max(1, int(np.ceil(n_windows / 2070)))
-    span_ns = per_dom * window_ns
+    span_ns = max(per_dom * window_ns, int(1e7))
+    per_dom_avail = span_ns // window_ns
     chunks = []
     n_left = n_windows
     for dom_id, (t, pmt, tot) in iter_dom_streams(
             span_ns, rates, seeds=(int(rng.integers(2**30)),
                                    int(rng.integers(2**30)))):
-        take = min(per_dom, n_left)
+        take = min(per_dom_avail, n_left)
         if take <= 0:
             break
         chunks.append(bin_stream(t, pmt, take, T, dt_ns))

@@ -64,12 +64,12 @@ class TriggerNet(nn.Module):
         return self.head(z)
 
 
-def make_model(variant: str, T: int = 256) -> TriggerNet:
+def make_model(variant: str, T: int = 256, n_ch: int = N_CH) -> TriggerNet:
     if T % 16 != 0:
         raise ValueError("T must be divisible by 16")
     if variant == "plain":
         f = nn.Sequential(
-            _Block(N_CH, 32, k=7, stride=2),
+            _Block(n_ch, 32, k=7, stride=2),
             _Block(32, 64, k=7, stride=2),
             _Block(64, 64, k=5, stride=2),
             _Block(64, 128, k=5, stride=2),
