@@ -25,8 +25,8 @@ def auc_score(scores, labels):
 
 
 def _to_input(x):
-    """(N, 16, T) -> (N, 16, 1, T) torch tensor."""
-    return torch.from_numpy(x).unsqueeze(2)
+    """(N, C, T) -> (N, C, 1, T) float32 torch tensor."""
+    return torch.from_numpy(np.ascontiguousarray(x, dtype=np.float32)).unsqueeze(2)
 
 
 @torch.no_grad()
@@ -43,16 +43,23 @@ def evaluate(model, x, y, device, batch=256):
 
 
 def train(variant, T=256, n_train=20000, n_val=4000, epochs=5, batch=128,
-          lr=1e-3, snr=2.0, seed=0, outdir="runs", device=None):
+          lr=1e-3, snr=2.0, seed=0, outdir="runs", device=None,
+          data=None, n_ch=16):
+    """data: optional (x_tr, y_tr, x_va, y_va) arrays, x of shape (N, n_ch, T);
+    if omitted, mock data is generated (n_ch=16)."""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     out = Path(outdir) / variant
     out.mkdir(parents=True, exist_ok=True)
 
-    print(f"[{variant}] generating mock data (T={T}, snr={snr})...")
-    x_tr, y_tr = make_dataset(n_train, T=T, snr=snr, seed=seed)
-    x_va, y_va = make_dataset(n_val, T=T, snr=snr, seed=seed + 1)
+    if data is None:
+        print(f"[{variant}] generating mock data (T={T}, snr={snr})...")
+        x_tr, y_tr = make_dataset(n_train, T=T, snr=snr, seed=seed)
+        x_va, y_va = make_dataset(n_val, T=T, snr=snr, seed=seed + 1)
+    else:
+        x_tr, y_tr, x_va, y_va = data
+    n_train = len(x_tr)
 
-    model = make_model(variant, T=T).to(device)
+    model = make_model(variant, T=T, n_ch=n_ch).to(device)
     print(f"[{variant}] {count_params(model):,} params, device={device}")
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.CrossEntropyLoss()

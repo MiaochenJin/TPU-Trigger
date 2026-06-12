@@ -77,7 +77,7 @@ def make_model(variant: str, T: int = 256, n_ch: int = N_CH) -> TriggerNet:
         return TriggerNet(f, 128, T // 16)
     if variant == "dilated":
         f = nn.Sequential(
-            _Block(N_CH, 64, k=5, stride=2),
+            _Block(n_ch, 64, k=5, stride=2),
             _Residual(64, k=5, dilation=1),
             _Residual(64, k=5, dilation=2),
             _Residual(64, k=5, dilation=4),
@@ -89,7 +89,7 @@ def make_model(variant: str, T: int = 256, n_ch: int = N_CH) -> TriggerNet:
         return TriggerNet(f, 128, T // 8)
     if variant == "depthwise":
         f = nn.Sequential(
-            _Block(N_CH, 32, k=7, stride=2),
+            _Block(n_ch, 32, k=7, stride=2),
             _ds_block(32, 64, stride=2),
             _ds_block(64, 96, stride=2),
             _ds_block(96, 128, stride=2),

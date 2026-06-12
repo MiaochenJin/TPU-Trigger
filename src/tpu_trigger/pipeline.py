@@ -19,34 +19,53 @@ from .models import VARIANTS, make_model
 from .train import auc_score, evaluate, train
 
 
+def load_h5_splits(path, seed):
+    """Load a composed background dataset and split 70/15/15."""
+    import h5py
+    with h5py.File(path) as f:
+        x, y = f["x"][:], f["y"][:]
+    rng = np.random.default_rng(seed)
+    order = rng.permutation(len(x))
+    x, y = x[order], y[order]
+    n1, n2 = int(0.7 * len(x)), int(0.85 * len(x))
+    return (x[:n1], y[:n1], x[n1:n2], y[n1:n2]), (x[n2:], y[n2:])
+
+
 def run_variant(variant, args):
     out = Path(args.outdir) / variant
     out.mkdir(parents=True, exist_ok=True)
 
-    # 1. train
-    tr = train(variant, T=args.T, n_train=args.n_train, n_val=args.n_val,
-               epochs=args.epochs, snr=args.snr, seed=args.seed,
-               outdir=args.outdir)
-    model = make_model(variant, T=args.T)
+    # 0/1. data + train
+    if args.data_h5:
+        data, (x_te, y_te) = load_h5_splits(args.data_h5, args.seed)
+        x_cal = data[0][:args.n_calib].astype(np.float32)
+        tr = train(variant, T=args.T, epochs=args.epochs, seed=args.seed,
+                   outdir=args.outdir, data=data, n_ch=args.n_ch)
+    else:
+        tr = train(variant, T=args.T, n_train=args.n_train, n_val=args.n_val,
+                   epochs=args.epochs, snr=args.snr, seed=args.seed,
+                   outdir=args.outdir)
+        x_te, y_te = make_dataset(args.n_test, T=args.T, snr=args.snr,
+                                  seed=args.seed + 2)
+        x_cal, _ = make_dataset(args.n_calib, T=args.T, snr=args.snr,
+                                seed=args.seed + 3)
+    x_te = x_te.astype(np.float32)
+    model = make_model(variant, T=args.T, n_ch=args.n_ch)
     model.load_state_dict(torch.load(tr["ckpt"], map_location="cpu",
                                      weights_only=True))
     model.eval()
 
-    # 2. test data (held out) + float reference
-    x_te, y_te = make_dataset(args.n_test, T=args.T, snr=args.snr,
-                              seed=args.seed + 2)
+    # 2. float reference on held-out test data
     torch_acc, torch_auc, torch_logit = evaluate(model, x_te, y_te, "cpu")
 
     # 3. convert + parity of the float tflite
     float_path = out / f"{variant}_float.tflite"
     print(f"[{variant}] converting -> {float_path}")
-    convert_float(model, args.T, float_path)
+    convert_float(model, args.T, float_path, n_ch=args.n_ch)
     f_logits, _ = tflite_logits(float_path, x_te[:64])
     conv_err = float(np.max(np.abs(f_logits - torch_logit[:64])))
 
     # 4. quantize with real calibration data (training distribution)
-    x_cal, _ = make_dataset(args.n_calib, T=args.T, snr=args.snr,
-                            seed=args.seed + 3)
     int8_path = out / f"{variant}_int8.tflite"
     print(f"[{variant}] quantizing -> {int8_path}")
     quantize_int8(float_path, x_cal, int8_path)
@@ -91,6 +110,10 @@ def main():
     p.add_argument("--snr", type=float, default=2.0)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--outdir", default="runs")
+    p.add_argument("--data-h5", default=None,
+                   help="composed background dataset; overrides mock data")
+    p.add_argument("--n-ch", type=int, default=16,
+                   help="input channels (31 for the KM3NeT DOM datasets)")
     args = p.parse_args()
 
     rows = [run_variant(v, args) for v in args.variants]

@@ -19,9 +19,9 @@ from ai_edge_quantizer import quantizer, recipe
 BOUNDARY_OPS = {"QUANTIZE", "DEQUANTIZE"}
 
 
-def convert_float(model, T, float_path):
+def convert_float(model, T, float_path, n_ch=16):
     model.eval()
-    sample = (torch.zeros(1, 16, 1, T),)
+    sample = (torch.zeros(1, n_ch, 1, T),)
     edge_model = litert_torch.convert(model, sample)
     edge_model.export(str(float_path))
 
