@@ -1,0 +1,14 @@
+{
+  "singles_rate_hz": 7106.259934548854,
+  "twofold_rate_hz_per_dom": 375.33816425120773,
+  "threefold_rate_hz_per_dom": 369.1111111111111,
+  "angular_log_corr": 0.9917254900717285,
+  "tot_mean_corrected": 26.94289855072464,
+  "checks": {
+    "singles": true,
+    "twofold": true,
+    "threefold": true,
+    "angular": true,
+    "tot": true
+  }
+}
