@@ -32,7 +32,7 @@ def sample_burst(rng):
     lo, hi = BURST_RATE_RANGE
     intensity = np.exp(rng.uniform(np.log(lo), np.log(hi)))
     cos_t = PMT_DIRS @ v
-    acc = np.where(cos_t > 0, cos_t ** ACC_POWER, 0.0)
+    acc = np.clip(cos_t, 0.0, None) ** ACC_POWER
     return v, intensity * acc
 
 
