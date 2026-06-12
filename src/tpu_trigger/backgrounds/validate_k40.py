@@ -75,12 +75,21 @@ def main():
     r_nom = RATES_DEFAULT                      # (7000, 700, 70, 0)
     r_low = (700.0,) + RATES_DEFAULT[1:]       # low-singles control
 
+    # k40gen's coincidence model (src/generate/generate.cpp): coincidence
+    # events arrive at R_c = sum(rates[1:]); each event has 2 + M members
+    # where M is sampled with weights = the WHOLE rates array. So the
+    # (2+m)-fold rate is R_c * rates[m] / sum(rates).
+    def fold_rates(r):
+        r_c = sum(r[1:])
+        return {2 + m: r_c * r[m] / sum(r) for m in range(4)}
+
     # ---- run A: nominal rates ----
     a = collect(int(args.span_a), r_nom, seeds=(21341, 1245))
     span_s = args.span_a * 1e-9
     singles = a["n_hits"] / (a["n_doms"] * 31 * span_s)
     # hits belonging to genuine coincidences add to the per-PMT singles rate
-    exp_singles = r_nom[0] + (2 * r_nom[1] + 3 * r_nom[2] + 4 * r_nom[3]) / 31
+    fr_nom = fold_rates(r_nom)
+    exp_singles = r_nom[0] + sum(f * v for f, v in fr_nom.items()) / 31
     tot_mean = a["tot"].mean() + 0.5  # undo integer floor
     print(f"[A] singles {singles:.0f} Hz/PMT (expected {exp_singles:.0f})")
     print(f"[A] ToT mean {tot_mean:.2f} (exp {TOT_MEAN}), "
@@ -92,12 +101,14 @@ def main():
     dom_s = b["n_doms"] * span_s_b
     rate2 = b["groups"][2] / dom_s
     rate3 = b["groups"][3] / dom_s
+    fr_low = fold_rates(r_low)
     # accidental contamination of the 2-fold count (Poisson singles pairs)
     r_dom = r_low[0] * 31
     acc2 = r_dom * r_dom * GAP_NS * 1e-9
+    exp2, exp3 = fr_low[2] + acc2, fr_low[3]
     print(f"[B] 2-fold groups {rate2:.0f} Hz/DOM "
-          f"(expected {r_low[1]:.0f} genuine + {acc2:.0f} accidental)")
-    print(f"[B] 3-fold groups {rate3:.1f} Hz/DOM (expected {r_low[2]:.0f})")
+          f"(expected {fr_low[2]:.0f} genuine + {acc2:.0f} accidental)")
+    print(f"[B] 3-fold groups {rate3:.1f} Hz/DOM (expected {exp3:.0f})")
 
     # angular correlation from 2-fold pairs, per PMT pair (465 types)
     ct = pair_cos_angles()
@@ -137,11 +148,11 @@ def main():
     print(f"wrote {out}/k40_validation.png")
 
     checks = {
-        "singles": abs(singles - exp_singles) / exp_singles < 0.02,
-        "twofold": abs(rate2 - (r_low[1] + acc2)) / (r_low[1] + acc2) < 0.10,
-        "threefold": abs(rate3 - r_low[2]) / r_low[2] < 0.20,
-        "angular": corr > 0.95,
-        "tot": abs(tot_mean - TOT_MEAN) < 0.3,
+        "singles": bool(abs(singles - exp_singles) / exp_singles < 0.02),
+        "twofold": bool(abs(rate2 - exp2) / exp2 < 0.10),
+        "threefold": bool(abs(rate3 - exp3) / exp3 < 0.20),
+        "angular": bool(corr > 0.95),
+        "tot": bool(abs(tot_mean - TOT_MEAN) < 0.3),
     }
     results = {"singles_rate_hz": float(singles),
                "twofold_rate_hz_per_dom": float(rate2),
