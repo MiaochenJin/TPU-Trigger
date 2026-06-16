@@ -7,3 +7,8 @@ runs/
 *.log
 *.sif
 *.deb
+# Workstation (WARD) in-project build artifacts — on FASRC these live at lab paths
+.venv/
+.cache/
+tools/k40gen/
+tools/edgetpu_compiler/

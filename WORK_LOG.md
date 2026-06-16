@@ -7,6 +7,22 @@ chronological narrative + design decisions not derivable from the code.
 
 ---
 
+## Status — 2026-06-16
+
+**Platform:** TPU-trigger now runs on **two platforms** — FASRC Cannon (cluster)
+and the **WARD** workstation (`ssh ward`), the latter newly stood up end-to-end:
+background generation + **GPU training (RTX 5090, sm_120)** + Edge TPU compile,
+all on one box with no SLURM queue. Per the cross-project convention, every log
+entry is tagged **[WARD]** (workstation) or **[FASRC]** (cluster); phases 0–2a
+below were all **[FASRC]**. Runbook in `WORKSTATION_SETUP.md`; details in the
+"Workstation (WARD) enablement" entry under the phase log.
+
+**Next up (unchanged):** the unified photon→PE response interface (phase-2b
+starting point). WARD is now the recommended host for it — gcc 13 is expected to
+ease the PROPOSAL source build that FASRC's gcc 8.5 blocked.
+
+---
+
 ## Status — 2026-06-12
 
 **Done:** environment + Edge TPU toolchain (phase 0), mock train→quantize→
@@ -137,6 +153,28 @@ was prepared and then cancelled per user request; resubmit is one
 singles, time-clustered K40 coincidences on adjacent PMTs, directional biolum
 bursts brightest on the facing hemisphere).
 
+### Workstation (WARD) enablement (2026-06-16) [WARD]
+Stood up the full pipeline on the WARD workstation (Ubuntu 24.04, Threadripper
+7970X 64t, RTX 5090), mirroring the AtmNuDataFit no-global-installs pattern:
+project-local `.venv` from system Python 3.12.3 (bootstrapped `--without-pip` +
+`get-pip.py`, since Ubuntu's python lacks `ensurepip`), the same
+`env/requirements.txt` as FASRC, plus `pip install -e .`. New scripts:
+`env.sh` (activation), `env/setup_env_ward.sh` (idempotent from-scratch standup);
+runbook in `WORKSTATION_SETUP.md`. **Three validations all PASS:** (1) **GPU** —
+`torch 2.11.0+cu128` runs a real sm_120 kernel on the RTX 5090 (capability 12,0),
+so training no longer needs the FASRC A100 queue; the cu128 pin works under the
+CUDA-13 driver (backward-compatible). (2) **k40gen** built against gcc 13 — two
+new platform patches beyond the FASRC pair (`tools/K40GEN_PATCHES.md` #4
+missing `<stdexcept>`, #5 disable the Catch2 v2 unit tests that don't compile on
+glibc 2.39); end-to-end via the project wrapper gives 7,162 Hz/PMT (10 ms full
+reference detector), in band. (3) **Smoke test** — the v16 edgetpu_compiler runs
+natively (self-contained wrapper, no Singularity) and reproduces **5/5 ops mapped
+to Edge TPU, 1 subgraph, int8 parity r=0.99892**, matching FASRC on a different
+OS/glibc. WARD ↔ GitHub sync directly (GitHub SSH works there). **Notable:**
+WARD's gcc 13 should unblock the phase-2b PROPOSAL build that FASRC's gcc 8.5
+couldn't do; the only thing WARD can't do is the on-device Coral benchmark (USB
+device location TBD).
+
 ---
 
 ## Operational notes
@@ -145,6 +183,12 @@ bursts brightest on the facing hemisphere).
   from Mac). `cluster` → lab bare repo for Mac↔cluster sync. Cluster clone has
   a `github` HTTPS remote (pull only; no ssh auth there). Keep all three in
   sync after commits.
+- **WARD workstation** (`ssh ward` = `hideon@128.103.100.27`): project at
+  `/home/hideon/Desktop/Projects/TPU-trigger`, everything in-project (`.venv/`,
+  `tools/k40gen`, `tools/edgetpu_compiler`; no global installs). GitHub SSH works
+  there, so WARD ↔ GitHub directly (no lab bare repo). Activate: `source env.sh`.
+  Standup from scratch: `bash env/setup_env_ward.sh`. Full runbook:
+  `WORKSTATION_SETUP.md`.
 - **Cluster paths:** code/env/tools/results on
   `/n/holylfs05/LABS/arguelles_delgado_lab/Everyone/miaochenjin/` (persistent);
   data/runs on `/n/netscratch/.../miaochenjin/TPU-trigger/` (purged ~90 d).
