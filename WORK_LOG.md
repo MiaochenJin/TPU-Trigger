@@ -7,6 +7,32 @@ chronological narrative + design decisions not derivable from the code.
 
 ---
 
+## Status — 2026-06-26
+
+**Platform:** phase-2b work was on **FASRC Cannon** — the KM3NeT **OMGsim**
+Geant4 chain (radioactive-background sim, run in Singularity), with code edited
+locally; tagged **[FASRC]**. WARD remains the recommended GPU/training host.
+
+**Done (phase 2b):** the unified photon→PE response is now *calibrated against
+measured optics* — OMGsim's Geant4 material tables (R12199-02 QE, glass, gel,
+NEMOWater absorption) drive `response.py`/`closure_k40.py`, moving the K40
+closure ratio **0.27 → 0.34** from real optics alone, and OMGsim's
+`singleDOM_OMGsim.detx` independently confirms `geometry.py` PMT directions. Ran
+OMGsim K40 on FASRC as an absolute-scale ground truth (**979 Hz/PMT** detected,
+truncated by the 10 m water world; ≈ 4,270 Hz de-truncated) and established that
+the 10 m world is sized for K40 *coincidence*, not singles, calibration. First
+signal-side source added: a **bioluminescence flash mode in OMGsim (GenType 3)**,
+built and validated, coincidence-dominated as expected of a bright point source.
+
+**Next up:** the muon signal source atop the response module (PROPOSAL build,
+better on WARD's gcc 13); porting Jpp's analytic PE→ToT digitization to Python
+(`backgrounds/digitize.py`) to replace the k40gen Gaussian-ToT placeholder, plus
+a matched waveform generator on Jpp's pulse shape; and a decoupled OMGsim
+emitter-radius command for clean large-water / small-emitter biolum runs (the
+current command is shadowed). See the Phase 2b entry below.
+
+---
+
 ## Status — 2026-06-16
 
 **Platform:** TPU-trigger now runs on **two platforms** — FASRC Cannon (cluster)
@@ -174,6 +200,117 @@ OS/glibc. WARD ↔ GitHub sync directly (GitHub SSH works there). **Notable:**
 WARD's gcc 13 should unblock the phase-2b PROPOSAL build that FASRC's gcc 8.5
 couldn't do; the only thing WARD can't do is the on-device Coral benchmark (USB
 device location TBD).
+
+### Phase 2b — OMGsim response calibration + bioluminescence source (2026-06-26) [FASRC]
+First signal-side step on top of the unified photon→PE response: calibrate the
+response against *measured* KM3NeT optics, then add the first signal source
+(bioluminescence) to the simulation chain. All compute on FASRC Cannon (OMGsim
+Geant4 runs); code edited locally.
+
+**Cloned the KM3NeT OMGsim chain.** `git@git.km3net.de:vkulikovskiy/inputs4qefit`
+(V. Kulikovskiy) cloned into `external/` — **gitignored** (internal KM3NeT data
+must not reach the public GitHub remote; `external/` added to `.gitignore`),
+behind a new SSH key for `git.km3net.de`. It is KM3NeT's radioactive-background
+sim: **OMGsim** (Geant4 10.01 app, run via the `omgsim_v2.1.4.sif` Singularity
+container) for decay→Cherenkov→optical-transport→photocathode, then **Jpp**
+(`Jpp_v18.0.0.sif`) for digitization/trigger/QE-fit. Pulled the `omgsim`
+submodule (source + `common/data` optical tables + `singleDOM_OMGsim.detx`).
+
+**Response model calibrated from the OMGsim optical tables.** New
+`src/tpu_trigger/backgrounds/optical_tables.py` parses the OMGsim Geant4 material
+PROPERTY tables — R12199-02 QE (stored as `QE2` = 2×real), AntaresGlass,
+`WackerSilGel612_A100B67` gel, NEMOWater absorption. `response.py:qe_eff` now
+folds the measured QE with Beer–Lambert glass(14 mm)+gel(2 mm) transmission when
+the external tables are present (`MEASURED_OPTICS` flag); a documented placeholder
+fallback stays committed so the public repo runs everywhere and carries no
+internal data. `closure_k40.py` uses the measured NEMOWater absorption. **The K40
+closure ratio moves 0.27 → 0.34** (predicted singles 1,915 → 2,382 Hz/PMT) from
+the real optics alone — the remaining gap is dominated by the placeholder
+Cherenkov photon yield. New `docs/response_calibration.md`. **Geometry
+independently validated:** the OMGsim `singleDOM_OMGsim.detx` PMT directions are
+identical to `geometry.py` `PMT_DIRS`, confirming k40gen's geometry.
+
+**Ran OMGsim K40 on FASRC — the absolute-scale ground truth.** OMGsim K40 (1e6
+decays, single 31-PMT DOM, NEMOWater, 10 m sphere) on `shared`: detected
+single-PMT rate **979 Hz/PMT** (QE2-corrected; raw 1958). This is **truncated** —
+the 10 m water world captures only ~23% of the infinite-medium singles
+(QE-weighted absorption length ≈ 37 m); de-truncated ≈ **4,270 Hz**, broadly
+consistent with the 7,000 Hz k40gen reference once truncation and the four other
+radioactive sources (we ran only seawater K40) are accounted for. **Key insight:**
+the 10 m world is sized for K40 *coincidence* calibration (decays within ~a few
+m), not the singles rate — singles is the wrong observable to close OMGsim
+against. K40 single-decay multiplicity: 97.1% singles, **2.9% coincidences (m≥2),
+all from r < 4.3 m**.
+
+**Added a bioluminescence generation mode to OMGsim (GenType 3).** Edited
+`KM3PrimaryGeneratorAction.{hh,cc}` + `KM3RunMessenger.{hh,cc}` (all additions
+marked `// TPU-trigger`): one event = one **instantaneous flash** = M
+**unpolarised** optical photons (Gaussian wavelength 450–500 nm, centre 475, with
+**random polarisation ⊥ momentum** — the production injection path set none, so
+reused the `RandomPolarization` idiom from `tests/MottaTest.cxx`) emitted from a
+single vertex sampled uniformly in the water `Target`. Reuses the `XP`/`Type K40`
+output and the unchanged propagation + DOM-response chain. New
+`/KM3/biolum/Nphotons` command; macro `scripts/DOMbiolum.mac`. **Built clean
+against the container's Geant4 and validated** — photons propagate and are
+detected (so random-polarisation reception works), 2 m emitter sphere confirmed.
+Tuned **M = 3500** (mean **3.2 PE/flash**). Single-flash multiplicity is
+**coincidence-dominated: ~70% of hit flashes have m≥2** (vs K40's 3%) — a bright
+point source. **Injection range ≳ 5 m at M = 3500** (coincidences fill both the
+R = 2 m and R = 5 m spheres; no cutoff within 5 m).
+
+**Runtime feasibility for a variable-brightness biolum source.** Measured Geant4
+throughput ≈ **5 µs per injected optical photon** (range 3.9–5.6; ≈ 2e5
+photons/s/core), linear and ~independent of R and M. K40 ≈ **520 µs/decay** (~100
+photon-equivalents). Per flash = M × 5 µs → M = 1e5 (~DOM saturation) = 0.5 s,
+**M = 1e9 (physical) = 1.4 h/flash (infeasible)**. **Decision:** cap M at the
+saturation scale (~1e5) — the DOM response is M-independent above saturation, so
+simulating physical brightness is both infeasible and unnecessary; brighter
+flashes are represented by the saturated response with the true M stored for
+reweighting. Both cost (∝ M) and injection range (∝ √M) are governed by M.
+
+**Geometry note (for future runs).** `/KM3/det/setTargetLength` and
+`/KM3/det/setWorldLength` both alias `SetTargetLength` (the water `Target` is a
+sphere of radius `fTargetLength`, default 5 m; the World box is 1.5×). The biolum
+emitter-radius command is **shadowed** (the same UI path is registered by two
+messengers), so emitters fill the water `Target`. K40 genuinely ran at 10 m
+(analysis unaffected); the biolum R = 10 scan point stayed at 5 m. A decoupled
+emitter-radius command is needed for clean large-R / small-emitter-in-large-water
+runs.
+
+**Cloned the Jpp digitization framework and characterised it** (local — Mac
+code exploration, no cluster compute). Shallow-cloned KM3NeT's Jpp
+(`git@git.km3net.de:common/jpp`) into `external/jpp` (**gitignored, 87 MB**);
+git.km3net.de SSH access already set up. Found the digitization in
+`software/JDetector/`: `JPMTSignalProcessorInterface` (the PE→hit pipeline),
+`JPMTAnalogueSignalProcessor` (the realistic model), `JPMTParameters`
+(constants), wrapped by `JTimeslice/JEventTimesliceWriter` (the tool the
+inputs4qefit chain used). **Key finding: Jpp digitizes PE→ToT analytically and
+produces NO sampled waveform** — the analog pulse exists only as closed-form
+functions; ToT (leading-edge time + width) is the native, final product.
+Pipeline: PE times → relative QE + TTS (from the *measured* transit-time
+distribution) per PE → merge PEs within one rise-time → sample charge (gain 1.0,
+gainSpread 0.4, 5% under-amplified) → discriminator threshold (0.24 pe) → emit
+(leading-edge time with **time-slewing**, ToT) → merge overlapping ToT pulses.
+Pulse model = Gaussian rising edge (riseTime ≈ 7.24 ns) + exponential decay
+tail, amplitude ∝ charge; **ToT(npe)** is linear at **7 ns/npe** in the
+high-charge regime then **smoothly saturates toward 210 ns**
+(`ToT = sat·tot/√(tot²+sat²)`); threshold-band hits get ToT ~ Gaussian(4.5 ±
+1.5 ns). The model is fully invertible (`getNPE(tot)`, charge probability).
+
+**Consequence / decision for reconstruction.** ToT is the official native
+product; full waveforms are absent from both OMGsim and Jpp, so a waveform model
+is entirely ours — but can be made consistent with the official chain by reusing
+Jpp's exact pulse shape (threshold(our-waveform) == Jpp ToT). ToT saturates at
+210 ns (≈ a few tens of PE), so the waveform-over-ToT reconstruction gain is
+concentrated in the **pile-up regime** (bright bioluminescence flashes — the
+saturation we capped M at — and bright signal) plus fine multi-photon timing
+(muon direction). Two-path plan adopted: (1) **port Jpp's PE→ToT model to
+Python** (`backgrounds/digitize.py`, from `JPMTAnalogueSignalProcessor` +
+`JPMTParameters`) — replaces the k40gen Gaussian-ToT placeholder and serves as
+the threshold step of the waveform path; (2) build a **waveform generator** on
+the same pulse shape + sampling/noise, verified against the Jpp ToT. These feed
+the trigger study: a ToT-only trigger vs a waveform algorithm that decides
+in-situ whether to save the full waveform or only the ToT.
 
 ---
 

@@ -12,3 +12,5 @@ runs/
 .cache/
 tools/k40gen/
 tools/edgetpu_compiler/
+# External KM3NeT-internal repos (do NOT push to the public GitHub origin)
+external/
