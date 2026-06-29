@@ -24,12 +24,13 @@ the 10 m world is sized for K40 *coincidence*, not singles, calibration. First
 signal-side source added: a **bioluminescence flash mode in OMGsim (GenType 3)**,
 built and validated, coincidence-dominated as expected of a bright point source.
 
-**Next up:** the muon signal source atop the response module (PROPOSAL build,
-better on WARD's gcc 13); porting Jpp's analytic PE→ToT digitization to Python
-(`backgrounds/digitize.py`) to replace the k40gen Gaussian-ToT placeholder, plus
-a matched waveform generator on Jpp's pulse shape; and a decoupled OMGsim
-emitter-radius command for clean large-water / small-emitter biolum runs (the
-current command is shadowed). See the Phase 2b entry below.
+**Next up:** the Jpp PE→ToT digitization port to Python is now **done**
+(`backgrounds/digitize.py` + a canonical waveform generator, committed on
+`phase2b-digitization`; see the Phase 2b entry below) — next is wiring it onto
+the OMGsim/response PE streams and the event displays / the trigger study. Still
+pending: the muon signal source atop the response module (PROPOSAL build, better
+on WARD's gcc 13) and a decoupled OMGsim emitter-radius command for clean
+large-water / small-emitter biolum runs (the current command is shadowed).
 
 ---
 
@@ -311,6 +312,39 @@ the threshold step of the waveform path; (2) build a **waveform generator** on
 the same pulse shape + sampling/noise, verified against the Jpp ToT. These feed
 the trigger study: a ToT-only trigger vs a waveform algorithm that decides
 in-situ whether to save the full waveform or only the ToT.
+
+**Implemented and committed the PMT digitization** (`backgrounds/digitize.py`,
+local — Mac code, no cluster compute). A faithful Python port of Jpp's
+`JPMTAnalogueSignalProcessor` charge→ToT model (linear 7 ns/npe, smooth
+saturation toward 210 ns, time-slewing, gain spread, under-amplification) with
+`JPMTParameters` defaults; plus the full PE→ToT pipeline (TTS smear, cluster PEs
+within a rise-time, charge, threshold, merge overlapping ToTs) and a self-test
+reproducing ToT(1 pe) = 24.9 ns and the saturation curve. Added a CANONICAL
+anode-waveform generator (`make_waveform`) on a separate PHYSICAL SPE pulse —
+causal (zero before the hit), fast ~3.5 ns rise (R12199 datasheet class), slow
+decay solved so the 1-pe pulse's ToT = the nominal 25.08 ns — plus
+summary-statistic extraction (`waveform_summary`: charge = integral, peak,
+leading-edge, ToT). **Key reconciliation:** the waveform and the official ToT are
+bridged by the CHARGE (waveform integral → Jpp charge→ToT model), NOT by
+thresholding the waveform — the KM3NeT ToT is charge-driven (the front-end clips
+and widens with charge), not the bare anode pulse width, so a naive threshold of
+the linear anode waveform (~47–54 ns at 12 pe) differs from the official ToT
+(~92 ns); the waveform additionally retains the true, unsaturated charge that ToT
+loses above ~tens of PE.
+
+**Parameter sourcing (time-boxed).** ToT model + parameters and the MEASURED
+transit-time-spread distribution come from Jpp
+(`JPMTAnalogueSignalProcessor`/`JPMTParameters`; `JPMTTransitTimeProbability`,
+main peak ~4–5 ns FWHM, sigma ~2 ns; `data/PMT_parameters.txt` only sets the
+default TTS to the measured distribution). NOT publicly available: the per-PMT
+calibration (KM3NeT database) and a measured SPE *pulse shape* (none exists —
+KM3NeT is ToT-native, no sampled waveform anywhere), so the SPE shape stays
+generic-but-grounded.
+
+**Committed** on branch `phase2b-digitization`: `response.py`,
+`optical_tables.py`, `closure_k40.py`, `digitize.py`,
+`docs/response_calibration.md`, `.gitignore` (adds `external/`). The internal
+KM3NeT clones under `external/` are gitignored and not committed.
 
 ---
 
