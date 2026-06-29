@@ -346,6 +346,19 @@ generic-but-grounded.
 `docs/response_calibration.md`, `.gitignore` (adds `external/`). The internal
 KM3NeT clones under `external/` are gitignored and not committed.
 
+**Event displays + handoff doc.** Built ToT event displays
+(`reports/figures/event_display_tot.py` → `event_display_k40_biolum.png`): the
+31-PMT DOM unrolled (azimuth vs cos-zenith), each lit PMT coloured and sized by
+its ToT (the Jpp charge→ToT for the PEs that PMT collected). A K40 3-fold
+coincidence (3 PMTs, 1 PE each, ~25 ns ToT) contrasts with a bioluminescence
+flash (10 PMTs lit, directional, charge-graded ToT 25–139 ns) — the sparse
+single-PE coincidence vs directional charge-graded illumination that
+distinguishes the two classes. Also saved the digitization sanity-check figure +
+script (`reports/figures/digitization_waveform_tot.{png,py}`). Wrote
+`docs/HANDOFF.md`: fresh-session orientation (project state, key artifacts and
+where they live incl. the gitignored `external/` KM3NeT clones and the FASRC
+`.evt` data, FASRC/WARD/git.km3net access, gotchas, and prioritised next steps).
+
 ---
 
 ## Operational notes
